@@ -3,25 +3,23 @@ import { Mascot } from '@/components/Mascot';
 import { SpotCard } from '@/components/SpotCard';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Toaster, toast } from 'sonner';
-import { Search, RefreshCw, Filter } from 'lucide-react';
+import { Search, RefreshCw, Filter, Sparkles, Plus } from 'lucide-react';
 import type { Spot, ApiResponse, SpotLocation, SpotType } from '@shared/types';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 export function HomePage() {
   const [spots, setSpots] = useState<Spot[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterLocation, setFilterLocation] = useState<SpotLocation | 'all'>('all');
   const [filterType, setFilterType] = useState<SpotType | 'all'>('all');
-  const fetchSpots = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
+  const fetchSpots = useCallback(async () => {
     try {
       const res = await fetch('/api/spots');
       const json = await res.json() as ApiResponse<Spot[]>;
       if (json.success && json.data) {
         setSpots(json.data);
-        if (isRefresh) toast.success('Spuds synchronized!', { icon: '🥔' });
       } else {
         throw new Error(json.error || 'Failed to fetch');
       }
@@ -30,13 +28,33 @@ export function HomePage() {
       toast.error('Could not load spuds!');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, []);
+  const handleDiscover = async () => {
+    if (discovering) return;
+    setDiscovering(true);
+    try {
+      const res = await fetch('/api/spots/discover', { method: 'POST' });
+      const json = await res.json() as ApiResponse<Spot[]>;
+      if (json.success && json.data) {
+        if (json.data.length === 0) {
+          toast.info('No more spuds to find!', { icon: '🥔' });
+        } else {
+          setSpots(prev => [...prev, ...json.data!]);
+          toast.success(`Found ${json.data.length} new spots!`, { icon: '✨' });
+        }
+      }
+    } catch (err) {
+      toast.error('Discovery failed. The spuds are hiding.');
+    } finally {
+      setDiscovering(false);
+    }
+  };
   useEffect(() => {
     fetchSpots();
   }, [fetchSpots]);
   const handleFavorite = async (id: string) => {
+    // Optimistic update
     setSpots(prev => prev.map(s =>
       s.id === id ? { ...s, favoriteCount: s.favoriteCount + 1 } : s
     ));
@@ -45,6 +63,7 @@ export function HomePage() {
       const json = await res.json() as ApiResponse<Spot>;
       if (!json.success) throw new Error('Failed');
     } catch (err) {
+      // Rollback
       setSpots(prev => prev.map(s =>
         s.id === id ? { ...s, favoriteCount: s.favoriteCount - 1 } : s
       ));
@@ -52,15 +71,19 @@ export function HomePage() {
     }
   };
   const filteredSpots = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
     return spots.filter(spot => {
       const locMatch = filterLocation === 'all' || spot.location === filterLocation || spot.location === 'both';
       const typeMatch = filterType === 'all' || spot.type === filterType;
-      const searchMatch = searchQuery.trim() === '' ||
-        spot.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        spot.description.toLowerCase().includes(searchQuery.toLowerCase());
+      const searchMatch = query === '' ||
+        spot.name.toLowerCase().includes(query) ||
+        spot.description.toLowerCase().includes(query) ||
+        spot.location.toLowerCase().includes(query) ||
+        spot.type.toLowerCase().includes(query);
       return locMatch && typeMatch && searchMatch;
     });
   }, [spots, filterLocation, filterType, searchQuery]);
+  const showDiscoveryButton = filterLocation === 'all' && filterType === 'all' && searchQuery === '';
   return (
     <div className="min-h-screen bg-cream selection:bg-spud/40">
       <ThemeToggle />
@@ -77,29 +100,27 @@ export function HomePage() {
       {/* Discovery Toolbelt */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
         <div className="card-neo p-8 md:p-10 flex flex-col gap-10">
-          {/* Main Search Bar */}
           <div className="flex flex-col md:flex-row gap-4 items-stretch">
             <div className="relative flex-1 group">
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-6 h-6 text-black/40 group-focus-within:text-black transition-colors" />
               <input
                 type="text"
-                placeholder="Search for spuds or soaks..."
+                placeholder="Try 'burger', 'breakfast', 'luxury' or 'pizza'..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-14 pr-6 py-5 bg-white border-4 border-black rounded-full font-black text-lg shadow-neo focus:outline-none focus:border-spud focus:shadow-neo-lg transition-all placeholder:text-black/15"
               />
             </div>
             <button
-              onClick={() => fetchSpots(true)}
-              disabled={refreshing}
+              onClick={handleDiscover}
+              disabled={discovering}
               className="btn-neo bg-spring text-white disabled:opacity-50 px-8"
-              aria-label="Refresh spots"
+              aria-label="Discover more spots"
             >
-              <RefreshCw className={cn("w-7 h-7 mr-2", refreshing && "animate-spin")} />
-              <span className="uppercase text-sm tracking-widest">Sync</span>
+              <Sparkles className={cn("w-7 h-7 mr-2", discovering && "animate-spin")} />
+              <span className="uppercase text-sm tracking-widest">{discovering ? 'Finding...' : 'Discover'}</span>
             </button>
           </div>
-          {/* Detailed Filters */}
           <div className="flex flex-col lg:flex-row items-center justify-center gap-10">
             <div className="flex flex-col gap-4 w-full lg:w-auto items-center lg:items-start">
               <label className="text-sm font-black uppercase tracking-[0.2em] text-black/30 flex items-center gap-2">
@@ -112,8 +133,8 @@ export function HomePage() {
                     onClick={() => setFilterLocation(loc as any)}
                     className={cn(
                       "px-8 py-3 rounded-full border-4 border-black font-black uppercase text-sm transition-all duration-100",
-                      filterLocation === loc 
-                        ? "bg-spud shadow-neo-lg translate-y-[-4px]" 
+                      filterLocation === loc
+                        ? "bg-spud shadow-neo-lg translate-y-[-4px]"
                         : "bg-white hover:bg-cream active:translate-y-1 active:shadow-none"
                     )}
                   >
@@ -134,8 +155,8 @@ export function HomePage() {
                     onClick={() => setFilterType(type as any)}
                     className={cn(
                       "px-8 py-3 rounded-full border-4 border-black font-black uppercase text-sm transition-all duration-100",
-                      filterType === type 
-                        ? (type === 'hotspring' ? "bg-spring text-white" : "bg-spud") + " shadow-neo-lg translate-y-[-4px]" 
+                      filterType === type
+                        ? (type === 'hotspring' ? "bg-spring text-white" : "bg-spud") + " shadow-neo-lg translate-y-[-4px]"
                         : "bg-white hover:bg-cream active:translate-y-1 active:shadow-none"
                     )}
                   >
@@ -155,28 +176,42 @@ export function HomePage() {
             <div className="h-10 w-64 bg-black/10 rounded-full" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 lg:gap-14">
-            <AnimatePresence mode="popLayout">
-              {filteredSpots.length > 0 ? (
-                filteredSpots.map((spot) => (
-                  <SpotCard
-                    key={spot.id}
-                    spot={spot}
-                    onFavorite={handleFavorite}
-                  />
-                ))
-              ) : (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="col-span-full text-center py-32 card-neo bg-white/50 border-dashed"
-                >
-                  <p className="text-4xl font-black uppercase text-black/10 tracking-tighter">
-                    Empty sack! No spuds found.
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
+          <div className="space-y-16">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 lg:gap-14">
+              <AnimatePresence mode="popLayout">
+                {filteredSpots.length > 0 ? (
+                  filteredSpots.map((spot) => (
+                    <SpotCard
+                      key={spot.id}
+                      spot={spot}
+                      onFavorite={handleFavorite}
+                    />
+                  ))
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="col-span-full text-center py-32 card-neo bg-white/50 border-dashed"
+                  >
+                    <p className="text-4xl font-black uppercase text-black/10 tracking-tighter">
+                      Empty sack! No spuds found.
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+            {showDiscoveryButton && (
+               <div className="flex justify-center pt-8">
+                  <button
+                    onClick={handleDiscover}
+                    disabled={discovering}
+                    className="btn-neo bg-white text-black text-2xl px-12 py-6 gap-4 hover:bg-spud group"
+                  >
+                    <Plus className={cn("w-8 h-8 transition-transform", discovering ? "animate-spin" : "group-hover:rotate-90")} />
+                    <span className="uppercase tracking-widest">More Ideas</span>
+                  </button>
+               </div>
+            )}
           </div>
         )}
       </section>

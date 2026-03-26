@@ -7,8 +7,24 @@ export class GlobalDurableObject extends DurableObject {
       if (spots) {
         return spots as Spot[];
       }
-      await this.ctx.storage.put("idaho_spots", MOCK_SPOTS);
-      return MOCK_SPOTS;
+      // Initialize with only the first 6 items for discovery pool mechanics
+      const initialSpots = MOCK_SPOTS.slice(0, 6);
+      await this.ctx.storage.put("idaho_spots", initialSpots);
+      return initialSpots;
+    }
+    async discoverNewSpots(): Promise<Spot[]> {
+      const currentSpots = await this.getSpots();
+      const currentIds = new Set(currentSpots.map(s => s.id));
+      // Filter MOCK_SPOTS for ones we don't have yet
+      const pool = MOCK_SPOTS.filter(s => !currentIds.has(s.id));
+      if (pool.length === 0) return [];
+      // Pick 3-5 random candidates
+      const countToPick = Math.min(pool.length, Math.floor(Math.random() * 3) + 3);
+      const shuffled = [...pool].sort(() => 0.5 - Math.random());
+      const selected = shuffled.slice(0, countToPick);
+      const updatedSpots = [...currentSpots, ...selected];
+      await this.ctx.storage.put("idaho_spots", updatedSpots);
+      return selected;
     }
     async incrementFavorite(id: string): Promise<Spot> {
       const spots = await this.getSpots();
@@ -16,9 +32,9 @@ export class GlobalDurableObject extends DurableObject {
       if (spotIndex === -1) {
         throw new Error("Spot not found");
       }
-      const updatedSpot = { 
-        ...spots[spotIndex], 
-        favoriteCount: spots[spotIndex].favoriteCount + 1 
+      const updatedSpot = {
+        ...spots[spotIndex],
+        favoriteCount: spots[spotIndex].favoriteCount + 1
       };
       const newSpots = [...spots];
       newSpots[spotIndex] = updatedSpot;

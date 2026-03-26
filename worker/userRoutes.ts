@@ -7,6 +7,11 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
         const data = await stub.getSpots();
         return c.json({ success: true, data } satisfies ApiResponse<Spot[]>);
     });
+    app.post('/api/spots/discover', async (c) => {
+        const stub = c.env.GlobalDurableObject.get(c.env.GlobalDurableObject.idFromName("global"));
+        const data = await stub.discoverNewSpots();
+        return c.json({ success: true, data } satisfies ApiResponse<Spot[]>);
+    });
     app.post('/api/spots/:id/favorite', async (c) => {
         const id = c.req.param('id');
         const stub = c.env.GlobalDurableObject.get(c.env.GlobalDurableObject.idFromName("global"));
