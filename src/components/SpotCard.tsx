@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { motion } from 'framer-motion';
 import { Heart } from 'lucide-react';
 import type { Spot } from '@shared/types';
@@ -8,9 +8,10 @@ interface SpotCardProps {
   spot: Spot;
   onFavorite: (id: string) => void;
 }
-export function SpotCard({ spot, onFavorite }: SpotCardProps) {
+export const SpotCard = forwardRef<HTMLDivElement, SpotCardProps>(({ spot, onFavorite }, ref) => {
   return (
     <motion.div
+      ref={ref}
       layout
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -67,4 +68,6 @@ export function SpotCard({ spot, onFavorite }: SpotCardProps) {
       </div>
     </motion.div>
   );
-}
+});
+
+SpotCard.displayName = 'SpotCard';
