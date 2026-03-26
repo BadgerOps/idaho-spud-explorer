@@ -3,7 +3,7 @@ import { Mascot } from '@/components/Mascot';
 import { SpotCard } from '@/components/SpotCard';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Toaster, toast } from 'sonner';
-import { Search, RefreshCw, Filter, Sparkles, Plus } from 'lucide-react';
+import { Search, Filter, Sparkles, Plus, XCircle } from 'lucide-react';
 import type { Spot, ApiResponse, SpotLocation, SpotType } from '@shared/types';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -33,19 +33,24 @@ export function HomePage() {
   const handleDiscover = async () => {
     if (discovering) return;
     setDiscovering(true);
+    const toastId = toast.loading('Peeling back new discoveries...');
     try {
       const res = await fetch('/api/spots/discover', { method: 'POST' });
       const json = await res.json() as ApiResponse<Spot[]>;
       if (json.success && json.data) {
         if (json.data.length === 0) {
-          toast.info('No more spuds to find!', { icon: '🥔' });
+          toast.info('No more spuds to find!', { icon: '🥔', id: toastId });
         } else {
-          setSpots(prev => [...prev, ...json.data!]);
-          toast.success(`Found ${json.data.length} new spots!`, { icon: '✨' });
+          setSpots(prev => {
+            const existingIds = new Set(prev.map(s => s.id));
+            const uniqueNewSpots = json.data!.filter(s => !existingIds.has(s.id));
+            return [...prev, ...uniqueNewSpots];
+          });
+          toast.success(`Found ${json.data.length} new spots!`, { icon: '✨', id: toastId });
         }
       }
     } catch (err) {
-      toast.error('Discovery failed. The spuds are hiding.');
+      toast.error('Discovery failed. The spuds are hiding.', { id: toastId });
     } finally {
       setDiscovering(false);
     }
@@ -54,7 +59,6 @@ export function HomePage() {
     fetchSpots();
   }, [fetchSpots]);
   const handleFavorite = async (id: string) => {
-    // Optimistic update
     setSpots(prev => prev.map(s =>
       s.id === id ? { ...s, favoriteCount: s.favoriteCount + 1 } : s
     ));
@@ -63,31 +67,37 @@ export function HomePage() {
       const json = await res.json() as ApiResponse<Spot>;
       if (!json.success) throw new Error('Failed');
     } catch (err) {
-      // Rollback
       setSpots(prev => prev.map(s =>
         s.id === id ? { ...s, favoriteCount: s.favoriteCount - 1 } : s
       ));
       toast.error('Spud power failure! Try again.');
     }
   };
+  const clearFilters = () => {
+    setSearchQuery('');
+    setFilterLocation('all');
+    setFilterType('all');
+    toast.info('Filters cleared!');
+  };
   const filteredSpots = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     return spots.filter(spot => {
+      // Logic: 'both' matches both 'boise' and 'mccall' filters
       const locMatch = filterLocation === 'all' || spot.location === filterLocation || spot.location === 'both';
       const typeMatch = filterType === 'all' || spot.type === filterType;
-      const searchMatch = query === '' ||
-        spot.name.toLowerCase().includes(query) ||
-        spot.description.toLowerCase().includes(query) ||
-        spot.location.toLowerCase().includes(query) ||
-        spot.type.toLowerCase().includes(query);
+      // Keywords search across name, description, and friendly location names
+      const locationDisplay = spot.location === 'both' ? 'boise mccall idaho' : `${spot.location} idaho`;
+      const typeDisplay = spot.type === 'hotspring' ? 'hot spring soak water' : 'food restaurant yum';
+      const searchContent = `${spot.name} ${spot.description} ${locationDisplay} ${typeDisplay}`.toLowerCase();
+      const searchMatch = query === '' || query.split(' ').every(q => searchContent.includes(q));
       return locMatch && typeMatch && searchMatch;
     });
   }, [spots, filterLocation, filterType, searchQuery]);
-  const showDiscoveryButton = filterLocation === 'all' && filterType === 'all' && searchQuery === '';
+  const isFiltered = searchQuery !== '' || filterLocation !== 'all' || filterType !== 'all';
+  const showDiscoveryButton = !isFiltered && !loading;
   return (
     <div className="min-h-screen bg-cream selection:bg-spud/40">
       <ThemeToggle />
-      {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32 text-center">
         <Mascot className="w-40 h-40 md:w-56 md:h-56 mb-10" />
         <h1 className="text-6xl md:text-9xl font-black uppercase tracking-tighter mb-6 drop-shadow-[6px_6px_0px_rgba(0,0,0,1)]">
@@ -97,7 +107,6 @@ export function HomePage() {
           Find the best fries and the hottest soaks in the Gem State. <span className="text-pine">No fluff, just spuds.</span>
         </p>
       </section>
-      {/* Discovery Toolbelt */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
         <div className="card-neo p-8 md:p-10 flex flex-col gap-10">
           <div className="flex flex-col md:flex-row gap-4 items-stretch">
@@ -105,7 +114,7 @@ export function HomePage() {
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-6 h-6 text-black/40 group-focus-within:text-black transition-colors" />
               <input
                 type="text"
-                placeholder="Try 'burger', 'breakfast', 'luxury' or 'pizza'..."
+                placeholder="Try 'burger', 'soak', 'luxury' or 'mccall'..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-14 pr-6 py-5 bg-white border-4 border-black rounded-full font-black text-lg shadow-neo focus:outline-none focus:border-spud focus:shadow-neo-lg transition-all placeholder:text-black/15"
@@ -118,7 +127,7 @@ export function HomePage() {
               aria-label="Discover more spots"
             >
               <Sparkles className={cn("w-7 h-7 mr-2", discovering && "animate-spin")} />
-              <span className="uppercase text-sm tracking-widest">{discovering ? 'Finding...' : 'Discover'}</span>
+              <span className="uppercase text-sm tracking-widest font-black">{discovering ? 'Finding...' : 'Discover'}</span>
             </button>
           </div>
           <div className="flex flex-col lg:flex-row items-center justify-center gap-10">
@@ -168,8 +177,7 @@ export function HomePage() {
           </div>
         </div>
       </section>
-      {/* Result Grid */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 min-h-[400px]">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32 animate-pulse">
             <Mascot className="w-24 h-24 mb-6 opacity-20 grayscale" />
@@ -189,27 +197,38 @@ export function HomePage() {
                   ))
                 ) : (
                   <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="col-span-full text-center py-32 card-neo bg-white/50 border-dashed"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="col-span-full text-center py-32 card-neo bg-white/50 border-dashed flex flex-col items-center gap-8"
                   >
-                    <p className="text-4xl font-black uppercase text-black/10 tracking-tighter">
-                      Empty sack! No spuds found.
-                    </p>
+                    <div>
+                      <XCircle className="w-20 h-20 mx-auto text-black/10 mb-4" />
+                      <p className="text-4xl font-black uppercase text-black/20 tracking-tighter">
+                        Empty sack! No spuds found.
+                      </p>
+                    </div>
+                    <button
+                      onClick={clearFilters}
+                      className="btn-neo bg-black text-white hover:bg-black/80"
+                    >
+                      Clear All Filters
+                    </button>
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
             {showDiscoveryButton && (
                <div className="flex justify-center pt-8">
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={handleDiscover}
                     disabled={discovering}
-                    className="btn-neo bg-white text-black text-2xl px-12 py-6 gap-4 hover:bg-spud group"
+                    className="btn-neo bg-white text-black text-2xl px-12 py-6 gap-4 hover:bg-spud group shadow-neo-lg"
                   >
                     <Plus className={cn("w-8 h-8 transition-transform", discovering ? "animate-spin" : "group-hover:rotate-90")} />
-                    <span className="uppercase tracking-widest">More Ideas</span>
-                  </button>
+                    <span className="uppercase tracking-widest font-black">More Ideas</span>
+                  </motion.button>
                </div>
             )}
           </div>
@@ -225,7 +244,7 @@ export function HomePage() {
         </p>
       </footer>
       <Toaster position="bottom-right" richColors toastOptions={{
-        style: { border: '4px solid black', borderRadius: '1rem', fontWeight: '900', textTransform: 'uppercase' }
+        style: { border: '4px solid black', borderRadius: '1.5rem', fontWeight: '900', textTransform: 'uppercase', padding: '1.25rem' }
       }} />
     </div>
   );
