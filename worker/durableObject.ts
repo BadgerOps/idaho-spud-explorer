@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
-import type { Spot } from '@shared/types';
-import { MOCK_SPOTS } from '@shared/mock-data';
+import type { Spot } from './types';
+import { MOCK_SPOTS } from './mock-data';
 export class GlobalDurableObject extends DurableObject {
     async getSpots(): Promise<Spot[]> {
       const spots = await this.ctx.storage.get("idaho_spots");

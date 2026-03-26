@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { Env } from './core-utils';
-import type { Spot, ApiResponse } from '@shared/types';
+import type { Spot, ApiResponse } from './types';
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
     app.get('/api/spots', async (c) => {
         const stub = c.env.GlobalDurableObject.get(c.env.GlobalDurableObject.idFromName("global"));
