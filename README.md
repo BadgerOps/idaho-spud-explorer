@@ -1,6 +1,6 @@
 # Idaho Spud Explorer
 
-[cloudflarebutton]
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/BadgerOps/idaho-spud-explorer)
 
 ## Overview
 
@@ -88,7 +88,7 @@ For custom deployments:
 2. Login: `wrangler login`
 3. Deploy: `wrangler deploy`
 
-[cloudflarebutton]
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/BadgerOps/idaho-spud-explorer)
 
 **Live Demo APIs**:
 - Health: `https://your-worker.your-subdomain.workers.dev/api/health`
