@@ -9,20 +9,21 @@ export function Mascot({ className }: MascotProps) {
     <motion.div
       animate={{
         y: [0, -12, 0],
-        rotate: [0, 3, -3, 0]
+        rotate: [0, 2, -2, 0]
       }}
       transition={{
-        duration: 5,
+        duration: 4,
         repeat: Infinity,
         ease: "easeInOut"
       }}
-      className={cn("relative inline-block", className)}
+      className={cn("relative inline-block select-none pointer-events-none", className)}
     >
       <svg
         viewBox="0 0 200 200"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        className="w-full h-full drop-shadow-[6px_6px_0px_rgba(0,0,0,1)]"
+        className="w-full h-full drop-shadow-[4px_4px_0px_rgba(0,0,0,1)] md:drop-shadow-[8px_8px_0px_rgba(0,0,0,1)]"
+        preserveAspectRatio="xMidYMid meet"
       >
         {/* Potato Body */}
         <path
@@ -37,7 +38,7 @@ export function Mascot({ className }: MascotProps) {
             scaleY: [1, 1, 0, 1, 1, 1, 0, 1, 1],
           }}
           transition={{
-            duration: 4,
+            duration: 5,
             repeat: Infinity,
             times: [0, 0.45, 0.5, 0.55, 0.6, 0.85, 0.9, 0.95, 1],
             ease: "easeInOut"
@@ -58,9 +59,9 @@ export function Mascot({ className }: MascotProps) {
           strokeWidth="8"
           strokeLinecap="round"
         />
-        {/* Blush */}
-        <circle cx="65" cy="115" r="10" fill="#F87171" fillOpacity="0.4" />
-        <circle cx="155" cy="115" r="10" fill="#F87171" fillOpacity="0.4" />
+        {/* Blush - slightly higher opacity for pop */}
+        <circle cx="65" cy="115" r="10" fill="#EF4444" fillOpacity="0.5" />
+        <circle cx="155" cy="115" r="10" fill="#EF4444" fillOpacity="0.5" />
       </svg>
     </motion.div>
   );
