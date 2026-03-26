@@ -1,138 +1,149 @@
-// Home page of the app.
-// Currently a demo placeholder "please wait" screen.
-// Replace this file with your actual app UI. Do not delete it to use some other file as homepage. Simply replace the entire contents of this file.
-
-import { useEffect, useMemo, useState } from 'react'
-import { Sparkles } from 'lucide-react'
-
-import { ThemeToggle } from '@/components/ThemeToggle'
-import { HAS_TEMPLATE_DEMO, TemplateDemo } from '@/components/TemplateDemo'
-import { Button } from '@/components/ui/button'
-import { Toaster, toast } from '@/components/ui/sonner'
-
-function formatDuration(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000))
-  const m = Math.floor(total / 60)
-  const s = total % 60
-  return `${m}:${s.toString().padStart(2, '0')}`
-}
-
+import React, { useEffect, useState, useMemo } from 'react';
+import { Mascot } from '@/components/Mascot';
+import { SpotCard } from '@/components/SpotCard';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { Toaster, toast } from 'sonner';
+import type { Spot, ApiResponse, SpotLocation, SpotType } from '@shared/types';
+import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
 export function HomePage() {
-  const [coins, setCoins] = useState(0)
-  const [isRunning, setIsRunning] = useState(false)
-  const [startedAt, setStartedAt] = useState<number | null>(null)
-  const [elapsedMs, setElapsedMs] = useState(0)
-
+  const [spots, setSpots] = useState<Spot[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterLocation, setFilterLocation] = useState<SpotLocation | 'all'>('all');
+  const [filterType, setFilterType] = useState<SpotType | 'all'>('all');
   useEffect(() => {
-    if (!isRunning || startedAt === null) return
-
-    const t = setInterval(() => {
-      setElapsedMs(Date.now() - startedAt)
-    }, 250)
-
-    return () => clearInterval(t)
-  }, [isRunning, startedAt])
-
-  const formatted = useMemo(() => formatDuration(elapsedMs), [elapsedMs])
-
-  const onPleaseWait = () => {
-    setCoins((c) => c + 1)
-
-    if (!isRunning) {
-      // Resume from the current elapsed time
-      setStartedAt(Date.now() - elapsedMs)
-      setIsRunning(true)
-      toast.success('Building your app…', {
-        description: "Hang tight — we're setting everything up.",
-      })
-      return
+    const fetchSpots = async () => {
+      try {
+        const res = await fetch('/api/spots');
+        const json = await res.json() as ApiResponse<Spot[]>;
+        if (json.success && json.data) {
+          setSpots(json.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch spots', err);
+        toast.error('Could not load spuds!');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSpots();
+  }, []);
+  const handleFavorite = async (id: string) => {
+    // Optimistic UI
+    setSpots(prev => prev.map(s => 
+      s.id === id ? { ...s, favoriteCount: s.favoriteCount + 1 } : s
+    ));
+    try {
+      const res = await fetch(`/api/spots/${id}/favorite`, { method: 'POST' });
+      const json = await res.json() as ApiResponse<Spot>;
+      if (!json.success) {
+        throw new Error('Failed to favorite');
+      }
+    } catch (err) {
+      // Rollback
+      setSpots(prev => prev.map(s => 
+        s.id === id ? { ...s, favoriteCount: s.favoriteCount - 1 } : s
+      ));
+      toast.error('Spud power failure! Try again.');
     }
-
-    setIsRunning(false)
-    toast.info('Still working…', {
-      description: 'You can come back in a moment.',
-    })
-  }
-
-  const onReset = () => {
-    setCoins(0)
-    setIsRunning(false)
-    setStartedAt(null)
-    setElapsedMs(0)
-    toast('Reset complete')
-  }
-
-  const onAddCoin = () => {
-    setCoins((c) => c + 1)
-    toast('Coin added')
-  }
-
+  };
+  const filteredSpots = useMemo(() => {
+    return spots.filter(spot => {
+      const locMatch = filterLocation === 'all' || spot.location === filterLocation || spot.location === 'both';
+      const typeMatch = filterType === 'all' || spot.type === filterType;
+      return locMatch && typeMatch;
+    });
+  }, [spots, filterLocation, filterType]);
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-4 overflow-hidden relative">
+    <div className="min-h-screen bg-cream selection:bg-spud/30">
       <ThemeToggle />
-      <div className="absolute inset-0 bg-gradient-rainbow opacity-10 dark:opacity-20 pointer-events-none" />
-
-      <div className="text-center space-y-8 relative z-10 animate-fade-in w-full">
-        <div className="flex justify-center">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-primary floating">
-            <Sparkles className="w-8 h-8 text-white rotating" />
+      {/* Hero Section */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 text-center">
+        <Mascot className="w-32 h-32 md:w-48 md:h-48 mb-8" />
+        <h1 className="text-5xl md:text-8xl font-black uppercase tracking-tight mb-4 drop-shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+          Idaho <span className="text-pine">Spud</span> <span className="text-spring text-outline">Explorer</span>
+        </h1>
+        <p className="text-xl md:text-2xl font-bold max-w-2xl mx-auto text-muted-foreground leading-relaxed">
+          Find the best fries and the hottest soaks in the Gem State. No fluff, just spuds.
+        </p>
+      </section>
+      {/* Filter Controls */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        <div className="card-neo p-6 md:p-8 flex flex-col md:flex-row items-center justify-center gap-6">
+          <div className="flex flex-col gap-2 w-full md:w-auto">
+            <label className="text-xs font-black uppercase tracking-widest text-black/40">Where to?</label>
+            <div className="flex flex-wrap gap-2">
+              {['all', 'boise', 'mccall'].map((loc) => (
+                <button
+                  key={loc}
+                  onClick={() => setFilterLocation(loc as any)}
+                  className={cn(
+                    "px-6 py-2 rounded-full border-4 border-black font-black uppercase text-sm transition-all",
+                    filterLocation === loc ? "bg-spud shadow-neo translate-y-[-2px]" : "bg-white hover:bg-cream"
+                  )}
+                >
+                  {loc}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="w-px h-12 bg-black/10 hidden md:block" />
+          <div className="flex flex-col gap-2 w-full md:w-auto">
+            <label className="text-xs font-black uppercase tracking-widest text-black/40">Interests</label>
+            <div className="flex flex-wrap gap-2">
+              {['all', 'food', 'hotspring'].map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setFilterType(type as any)}
+                  className={cn(
+                    "px-6 py-2 rounded-full border-4 border-black font-black uppercase text-sm transition-all",
+                    filterType === type ? "bg-spring shadow-neo translate-y-[-2px]" : "bg-white hover:bg-cream"
+                  )}
+                >
+                  {type === 'hotspring' ? 'Hot Springs' : type}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-
-        <div className="space-y-3">
-          <h1 className="text-5xl md:text-7xl font-display font-bold text-balance leading-tight">
-            Creating your <span className="text-gradient">app</span>
-          </h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-xl mx-auto text-pretty">
-            Your application would be ready soon.
-          </p>
-        </div>
-
-        {HAS_TEMPLATE_DEMO ? (
-          <div className="max-w-5xl mx-auto text-left">
-            <TemplateDemo />
+      </section>
+      {/* Results Grid */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 animate-pulse">
+            <div className="w-20 h-20 bg-black/5 rounded-full mb-4" />
+            <div className="h-8 w-48 bg-black/5 rounded-full" />
           </div>
         ) : (
-          <>
-            <div className="flex justify-center gap-4">
-              <Button
-                size="lg"
-                onClick={onPleaseWait}
-                className="btn-gradient px-8 py-4 text-lg font-semibold hover:-translate-y-0.5 transition-all duration-200"
-                aria-live="polite"
-              >
-                Please Wait
-              </Button>
-            </div>
-
-            <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
-              <div>
-                Time elapsed:{' '}
-                <span className="font-medium tabular-nums text-foreground">{formatted}</span>
-              </div>
-              <div>
-                Coins:{' '}
-                <span className="font-medium tabular-nums text-foreground">{coins}</span>
-              </div>
-            </div>
-
-            <div className="flex justify-center gap-2">
-              <Button variant="outline" size="sm" onClick={onReset}>
-                Reset
-              </Button>
-              <Button variant="outline" size="sm" onClick={onAddCoin}>
-                Add Coin
-              </Button>
-            </div>
-          </>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-12">
+            <AnimatePresence mode="popLayout">
+              {filteredSpots.length > 0 ? (
+                filteredSpots.map((spot) => (
+                  <SpotCard 
+                    key={spot.id} 
+                    spot={spot} 
+                    onFavorite={handleFavorite} 
+                  />
+                ))
+              ) : (
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="col-span-full text-center py-20"
+                >
+                  <p className="text-3xl font-black uppercase text-black/20">No spuds found here!</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         )}
-      </div>
-
-      <footer className="absolute bottom-8 text-center text-muted-foreground/80">
-        <p>Powered by Cloudflare</p>
+      </section>
+      <footer className="py-12 border-t-4 border-black bg-white text-center">
+        <p className="font-black uppercase text-sm tracking-widest">
+          Made with 🥔 in Idaho
+        </p>
       </footer>
-
-      <Toaster richColors closeButton />
+      <Toaster position="bottom-right" richColors />
     </div>
-  )
+  );
 }
